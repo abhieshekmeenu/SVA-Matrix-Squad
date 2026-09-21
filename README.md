@@ -67,7 +67,7 @@ pkg install git python -y
 ### 3️⃣ Clone SVA Matrix
 
 ```bash
-git clone https://github.com/Hackerscolonyofficial/SVA-Matrix.git
+git clone https://github.com/abhieshek-lab/SVA-Matrix-Squad.git
 ```
 
 ### 4️⃣ Enter the directory
@@ -121,7 +121,7 @@ sudo apt install git python3 python3-pip -y
 ### 3️⃣ Clone SVA Matrix
 
 ```bash
-git clone https://github.com/Hackerscolonyofficial/SVA-Matrix.git
+git clone https://github.com/abhieshek-lab/SVA-Matrix-Squad.git
 ```
 
 ### 4️⃣ Enter the directory
