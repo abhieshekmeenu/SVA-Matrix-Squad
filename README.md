@@ -67,13 +67,13 @@ pkg install git python -y
 ### 3️⃣ Clone SVA Matrix
 
 ```bash
-git clone https://github.com/abhieshek-lab/SVA-Matrix-Squad.git
+git clone https://github.com/abhieshekmeenu/SVA-Matrix-Squad.git
 ```
 
 ### 4️⃣ Enter the directory
 
 ```bash
-cd SVA-Matrix
+cd SVA-Matrix-Squad
 ```
 
 ### 5️⃣ Install the Python dependency
@@ -95,7 +95,7 @@ export OPENROUTER_API_KEY="YOUR_API_KEY"
 ### 7️⃣ Run SVA Matrix 🚀
 
 ```bash
-python SVA-Matrix.py
+sva
 ```
 
 ---
@@ -121,13 +121,13 @@ sudo apt install git python3 python3-pip -y
 ### 3️⃣ Clone SVA Matrix
 
 ```bash
-git clone https://github.com/abhieshek-lab/SVA-Matrix-Squad.git
+git clone https://github.com/abhieshekmeenu/SVA-Matrix-Squad.git
 ```
 
 ### 4️⃣ Enter the directory
 
 ```bash
-cd SVA-Matrix
+cd SVA-Matrix-Squad
 ```
 
 ### 5️⃣ Install dependencies
@@ -153,7 +153,7 @@ export OPENROUTER_API_KEY="YOUR_API_KEY"
 ### 7️⃣ Start the tool 🚀
 
 ```bash
-python3 SVA-Matrix.py
+sva
 ```
 
 ---
