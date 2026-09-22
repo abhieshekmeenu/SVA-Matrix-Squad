@@ -17,6 +17,22 @@ learn cybersecurity concepts directly from the command line.
 
 ---
 
+## 📱 Installation
+
+### One-command setup
+
+```bash
+git clone https://github.com/abhieshekmeenu/SVA-Matrix-Squad.git && builtin cd SVA-Matrix-Squad && ./install.sh
+```
+
+The installer automatically installs the required dependencies and creates the `sva` command.
+
+### Start
+
+```bash
+sva
+```
+
 ## ⚠️ Disclaimer
 
 SVA Matrix is an educational technology project.
