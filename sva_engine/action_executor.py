@@ -150,9 +150,12 @@ class ActionExecutor:
                         "reason": "Run command is required",
                     }
 
+                command_input = action.get("input")
+
                 result = self.controller.execute(
                     command,
                     task_id=task_id,
+                    input_data=command_input,
                 )
 
                 if not isinstance(result, dict):

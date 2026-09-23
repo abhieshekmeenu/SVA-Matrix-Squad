@@ -1759,7 +1759,6 @@ def assistant(api_key, initial_choice=None):
 
         if choice == "4":
             from sva_engine.code_debugger import CodeDebugger
-            from pathlib import Path
 
             ai_client = SVAAIClient(
                 api_key=api_key,

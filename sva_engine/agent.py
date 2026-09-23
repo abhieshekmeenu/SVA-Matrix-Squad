@@ -16,11 +16,22 @@ class PersistentAgent:
         store: Optional[TaskStore] = None,
         recovery_manager=None,
         executor=None,
+        progress_callback=None,
     ):
         self.controller = controller
         self.store = store or TaskStore()
         self.recovery_manager = recovery_manager
         self.executor = executor
+        self.progress_callback = progress_callback
+
+    def _progress(self, event: str, **data) -> None:
+        callback = self.progress_callback
+        if callable(callback):
+            try:
+                callback(event, data)
+            except Exception:
+                # Progress reporting must never stop task execution.
+                pass
 
     def _result_error(self, result: Dict[str, Any]) -> str:
         return (
@@ -319,6 +330,13 @@ class PersistentAgent:
 
             action = steps[current_step]
 
+            self._progress(
+                "step_start",
+                step=current_step + 1,
+                total_steps=total_steps,
+                action=action,
+            )
+
             self.store.checkpoint(
                 project_id,
                 task_id,
@@ -328,8 +346,24 @@ class PersistentAgent:
                 status="RUNNING",
             )
 
+            self._progress(
+                "executing",
+                step=current_step + 1,
+                total_steps=total_steps,
+                action=action,
+            )
+
             result = self._execute(action, task_id)
             success = bool(result.get("success", False))
+
+            self._progress(
+                "step_result",
+                step=current_step + 1,
+                total_steps=total_steps,
+                action=action,
+                success=success,
+                result=result,
+            )
 
             if success:
                 completed_step = current_step + 1

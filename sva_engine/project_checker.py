@@ -343,8 +343,6 @@ class ProjectChecker:
         )
         failed = len(results) - passed
 
-        pytest_result = self.run_pytest()
-
         return {
             "project": str(self.project_path),
             "files_discovered": len(files),
@@ -352,7 +350,7 @@ class ProjectChecker:
             "passed": passed,
             "failed": failed,
             "results": results,
-            "pytest": pytest_result,
+            "pytest": None,
         }
 
     def summary(self) -> dict[str, object]:

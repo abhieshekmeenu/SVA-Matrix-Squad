@@ -249,6 +249,18 @@ class AIPlanner:
 
                 clean_step["command"] = command
 
+                command_input = step.get("input")
+                if command_input is not None:
+                    if not isinstance(command_input, str):
+                        return {
+                            "success": False,
+                            "reason": f"Step {index} requires string input",
+                            "task": task,
+                            "steps": [],
+                            "raw_response": response,
+                        }
+                    clean_step["input"] = command_input
+
             if action == "verify":
                 expect = step.get("expect", "")
 
