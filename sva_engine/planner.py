@@ -53,6 +53,69 @@ class AIPlanner:
             f"User task:\n{task}"
         )
 
+    @staticmethod
+    def _parse_json_response(response):
+        """Parse JSON from a model response without weakening validation."""
+        if not isinstance(response, str):
+            return None
+
+        candidate = response.strip()
+
+        if not candidate:
+            return None
+
+        # Normal JSON response.
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            pass
+
+        # Remove Markdown JSON fences if the model added them.
+        if candidate.startswith("```") and candidate.endswith("```"):
+            lines = candidate.splitlines()
+            if len(lines) >= 3:
+                candidate = "\n".join(lines[1:-1]).strip()
+                try:
+                    return json.loads(candidate)
+                except json.JSONDecodeError:
+                    pass
+
+        # Extract the outermost JSON object when the model added text
+        # before or after the JSON.
+        start = candidate.find("{")
+        end = candidate.rfind("}")
+
+        if start != -1 and end > start:
+            candidate = candidate[start:end + 1]
+
+            try:
+                return json.loads(candidate)
+            except json.JSONDecodeError:
+                pass
+
+            # Recover one common extra-closing-brace error.
+            if candidate.endswith("}}"):
+                try:
+                    return json.loads(candidate[:-1])
+                except json.JSONDecodeError:
+                    pass
+
+            # Recover the existing malformed steps-array pattern.
+            marker = ']}},{"action":"run"'
+            repaired = candidate.replace(
+                marker,
+                '}},{"action":"run"',
+                1,
+            )
+
+            if repaired != candidate:
+                try:
+                    return json.loads(repaired)
+                except json.JSONDecodeError:
+                    pass
+
+        return None
+
     def plan(self, task):
         if not task or not task.strip():
             return {
@@ -77,51 +140,37 @@ class AIPlanner:
             }
 
         response = result.get("response", "")
+        data = self._parse_json_response(response)
 
-        try:
-            data = json.loads(response)
-        except (TypeError, json.JSONDecodeError) as exc:
-            data = None
+        # If the model produced malformed JSON, ask it once more for a
+        # strict JSON-only response instead of immediately failing the task.
+        if data is None:
+            retry_prompt = (
+                "Your previous planner response was invalid JSON.\n"
+                "Return ONLY one valid JSON object.\n"
+                "Do not use Markdown fences.\n"
+                "Do not add explanations.\n"
+                "Preserve the requested task and create safe executable steps.\n\n"
+                f"User task:\n{task}"
+            )
 
-            if isinstance(response, str):
-                candidate = response.strip()
+            retry_result = self.ai_client.ask(retry_prompt)
 
-                # Recover a common model formatting error:
-                # one extra closing brace at the end of an otherwise
-                # complete JSON object.
-                if candidate.endswith("}}"):
-                    candidate = candidate[:-1]
-                    try:
-                        data = json.loads(candidate)
-                    except json.JSONDecodeError:
-                        data = None
+            if retry_result.get("success", False):
+                retry_response = retry_result.get("response", "")
+                data = self._parse_json_response(retry_response)
 
-            if data is None:
-                # Recover a malformed planner response where the
-                # steps array was closed before later action objects.
-                if isinstance(response, str):
-                    candidate = response.strip()
-                    marker = ']}},{"action":"run"'
-                    repaired = candidate.replace(
-                        marker,
-                        '}},{"action":"run"',
-                        1,
-                    )
+                if data is not None:
+                    response = retry_response
 
-                    if repaired != candidate:
-                        try:
-                            data = json.loads(repaired)
-                        except json.JSONDecodeError:
-                            data = None
-
-            if data is None:
-                return {
-                    "success": False,
-                    "reason": f"Planner returned invalid JSON: {exc}",
-                    "task": task,
-                    "steps": [],
-                    "raw_response": response,
-                }
+        if data is None:
+            return {
+                "success": False,
+                "reason": "Planner returned invalid JSON after automatic retry",
+                "task": task,
+                "steps": [],
+                "raw_response": response,
+            }
 
         if not isinstance(data, dict):
             return {

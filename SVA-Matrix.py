@@ -3312,6 +3312,28 @@ def assistant(api_key, initial_choice=None):
         # ----------------------------------------------------
 
         if choice == "7":
+            # Unified Task Agent dashboard.
+            # The existing Task Agent execution/history system remains
+            # intact; this dashboard adds the new deployment/context
+            # control layer around it.
+            try:
+                from task_agent.task_agent_menu import TaskAgentMenu
+
+                unified_agent = TaskAgentMenu()
+                unified_agent.run()
+
+            except Exception as error:
+                print()
+                print(f"{RED}❌ Unified Task Agent error: {error}{RESET}")
+                input("\nPress ENTER...")
+
+            continue
+
+            # --------------------------------------------------------
+            # LEGACY TASK AGENT
+            # --------------------------------------------------------
+            # Kept below intentionally as a rollback/reference path.
+            # It is not executed while the unified dashboard is active.
             task_messages = []
 
             while True:
