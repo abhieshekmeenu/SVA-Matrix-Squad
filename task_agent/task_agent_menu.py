@@ -42,13 +42,25 @@ from task_agent.context.context_manager import (
     CONTEXT_FILES,
 )
 from task_agent.deployment.orchestrator import DeploymentOrchestrator
+from sva_engine.planner import AIPlanner
+from sva_engine.task_store import TaskStore
+from sva_engine.controller import SVAController
+from sva_engine.action_executor import ActionExecutor
+from sva_engine.agent import PersistentAgent
 
 
 class TaskAgentMenu:
-    def __init__(self):
+    def __init__(self, ai_client=None):
+        self.ai_client = ai_client
         self.project: Optional[Path] = None
         self.deployment: Optional[DeploymentOrchestrator] = None
         self.context: Optional[ProjectContextManager] = None
+
+        # Autonomous Task Agent runtime state.
+        self.current_task: Optional[str] = None
+        self.agent_state: str = "IDLE"
+        self.agent_step: int = 0
+        self.agent_history: list[dict] = []
 
     def clear(self):
         os.system("clear")
@@ -97,9 +109,25 @@ class TaskAgentMenu:
         return True
 
     def ensure_project(self) -> bool:
-        if self.project is None:
-            return self.select_project()
-        return True
+        if self.project is not None:
+            return True
+
+        current = Path.cwd().resolve()
+
+        # When Task Agent is launched from an existing project,
+        # use that workspace directly instead of asking for it again.
+        if (
+            (current / ".git").exists()
+            or (current / "SVA-Matrix.py").exists()
+            or (current / "pyproject.toml").exists()
+            or (current / "package.json").exists()
+        ):
+            self.project = current
+            self.deployment = DeploymentOrchestrator(current)
+            self.context = ProjectContextManager(current)
+            return True
+
+        return self.select_project()
 
     def deployment_menu(self):
         while True:
@@ -195,27 +223,196 @@ Status        : {status.get('status')}
         self.header("🔧 FIND & FIX")
 
         print("""
-The Find & Fix stage is the controlled repair layer.
-
-Current deployment:
-    CHECK
-      ↓
-    TEST
-      ↓
-    ERROR OBSERVATION
-      ↓
-    AI REPAIR
-      ↓
-    RETEST
-      ↓
-    VERIFY
-
-The existing sva_engine testing/repair components remain the
-underlying repair system and are not replaced here.
+TEST → OBSERVE → AI ANALYZE → REPAIR → RETEST → VERIFY
 """)
 
-        print("📂 Existing testing engine:")
-        print(self.project / "sva_engine" / "testing")
+        testing_dir = self.project / "sva_engine" / "testing"
+
+        if not testing_dir.is_dir():
+            print("\n❌ Existing testing engine not found.")
+            input("\nPress ENTER...")
+            return
+
+        try:
+            from sva_engine.testing.loop import TestingLoop
+            from sva_engine.ai_error_fixer import AIErrorFixer
+            from sva_engine.testing.planner import TestPlanner
+            from sva_engine.testing.repair import RepairProposal
+
+            if self.ai_client is None:
+                print("\n⚠️ Unified AI Gateway is not configured.")
+                input("\nPress ENTER...")
+                return
+
+            # Reuse the same unified AI interface used by Task Agent.
+            ai_client = self.ai_client
+            fixer = AIErrorFixer(ai_client)
+            loop = TestingLoop(
+                self.project,
+                timeout=120,
+                max_retries=2,
+            )
+
+            from sva_engine.testing.detector import ProjectDetector
+
+            detection = ProjectDetector(self.project).detect()
+            print(f"🔍 Detected     : {', '.join(detection.get('languages', [])) or 'UNKNOWN'}")
+
+            planner = TestPlanner(self.project)
+            plan = planner.plan(detection)
+
+            if not plan.get("success"):
+                print("\n❌ Could not create test plan.")
+                print(plan.get("reason", "Unknown error"))
+                input("\nPress ENTER...")
+                return
+
+            steps = [
+                step for step in plan.get("steps", [])
+                if isinstance(step, dict)
+            ]
+
+            if not steps:
+                print("\n⚠️ No test steps available.")
+                input("\nPress ENTER...")
+                return
+
+            print(f"🤖 AI            : OpenRouter / {model}")
+            print(f"🧪 Test steps    : {len(steps)}")
+            print("🔁 Max retries   : 2")
+            print()
+
+            for index, step in enumerate(steps, 1):
+                if step.get("conditional"):
+                    condition = str(step.get("condition", ""))
+                    if condition == "tests/ exists" and not (
+                        self.project / "tests"
+                    ).is_dir():
+                        continue
+
+                    if condition == "package.json has test script":
+                        package = self.project / "package.json"
+                        if not package.exists():
+                            continue
+
+                print(
+                    f"\n[{index}] {step.get('id', 'unknown')}"
+                )
+                print(
+                    "    $ "
+                    + " ".join(
+                        str(arg) for arg in step.get("argv", [])
+                    )
+                )
+
+                def repair_proposer(
+                    *,
+                    step,
+                    result,
+                    failure,
+                    attempt,
+                ):
+
+                    command = " ".join(
+                        str(arg) for arg in step.get("argv", [])
+                    )
+
+                    error = (
+                        str(result.get("stderr") or "")
+                        + "\n"
+                        + str(result.get("stdout") or "")
+                    ).strip()
+
+                    print(
+                        f"\n🧠 AI analyzing failure "
+                        f"(attempt {attempt})..."
+                    )
+
+                    proposal = fixer.propose_repair(
+                        command,
+                        error,
+                        failure,
+                    )
+
+                    if not isinstance(proposal, RepairProposal):
+                        raise ValueError(
+                            "AI did not return a RepairProposal"
+                        )
+
+                    print("\n--- AI DIAGNOSIS ---")
+                    print(proposal.diagnosis)
+
+                    print(
+                        f"Category   : "
+                        f"{proposal.failure_category}"
+                    )
+                    print(
+                        f"Fix type   : {proposal.fix_type}"
+                    )
+                    print(
+                        f"Confidence : "
+                        f"{proposal.confidence:.2f}"
+                    )
+
+                    print("\n--- PROPOSED ACTIONS ---")
+
+                    if not proposal.actions:
+                        print("(no safe file repair proposed)")
+                        return proposal
+
+                    for action in proposal.actions:
+                        print(f"Action : {action.action}")
+                        print(f"Path   : {action.path}")
+
+                        if action.action == "patch_file":
+                            print(
+                                f"Replace: "
+                                f"{action.old_text!r}"
+                            )
+                            print(
+                                f"With   : "
+                                f"{action.new_text!r}"
+                            )
+                        elif action.action == "write_file":
+                            print("Content: <file content proposed>")
+
+                    return proposal
+
+                def approve_repair(proposal):
+                    confirm = input(
+                        "\nApply this repair? [y/N]: "
+                    ).strip().lower()
+                    return confirm == "y"
+
+                result = loop.run_step(
+                    step,
+                    repair_proposer=repair_proposer,
+                    approval_callback=approve_repair,
+                )
+
+                print("\n--- RESULT ---")
+                print(
+                    f"Status   : "
+                    f"{result.get('status')}"
+                )
+                print(
+                    f"Attempts : "
+                    f"{result.get('attempts')}"
+                )
+
+                if result.get("success"):
+                    print("✅ VERIFIED")
+                else:
+                    print("❌ NOT VERIFIED")
+
+            print("\n🏁 FIND & FIX COMPLETE")
+
+            self.testing_loop = loop
+            self.ai_client = ai_client
+            self.ai_error_fixer = fixer
+
+        except Exception as exc:
+            print(f"\n❌ Find & Fix failed: {exc}")
 
         input("\nPress ENTER...")
 
@@ -258,20 +455,55 @@ underlying repair system and are not replaced here.
             input("\nPress ENTER...")
             return
 
-        result = self.deployment.run(command)
+        # Interactive application entry points must keep the
+        # user's terminal stdin/stdout. Captured subprocess execution
+        # would otherwise wait for input and block the Task Agent.
+        if Path(entry).suffix.lower() == ".py":
+            print("\n▶️ Starting interactive project...")
+            print("ℹ️ Press the application's own Exit option to return.")
+            print()
 
-        print("\n--- STDOUT ---")
-        print(result.get("stdout") or "(empty)")
+            try:
+                import subprocess
 
-        print("\n--- STDERR ---")
-        print(result.get("stderr") or "(empty)")
+                result = subprocess.run(
+                    command,
+                    shell=True,
+                    cwd=str(self.project),
+                )
 
-        print(f"\n--- RETURN CODE: {result.get('returncode')} ---")
-        print(
-            "\n✅ RUN SUCCESS"
-            if result.get("success")
-            else "\n❌ RUN FAILED"
-        )
+                run_result = {
+                    "success": result.returncode == 0,
+                    "returncode": result.returncode,
+                    "stdout": "",
+                    "stderr": "",
+                    "command": command,
+                }
+
+                print(
+                    "\n✅ RUN SUCCESS"
+                    if run_result["success"]
+                    else "\n❌ RUN FAILED"
+                )
+
+            except Exception as exc:
+                print(f"\n❌ RUN ERROR: {exc}")
+
+        else:
+            result = self.deployment.run(command)
+
+            print("\n--- STDOUT ---")
+            print(result.get("stdout") or "(empty)")
+
+            print("\n--- STDERR ---")
+            print(result.get("stderr") or "(empty)")
+
+            print(f"\n--- RETURN CODE: {result.get('returncode')} ---")
+            print(
+                "\n✅ RUN SUCCESS"
+                if result.get("success")
+                else "\n❌ RUN FAILED"
+            )
 
         input("\nPress ENTER...")
 
@@ -379,35 +611,196 @@ underlying repair system and are not replaced here.
 
         input("\nPress ENTER...")
 
+    def load_agent_context(self) -> dict[str, str]:
+        """Load all project context files for autonomous task execution."""
+        if not self.ensure_project():
+            return {}
+
+        if self.context is None:
+            self.context = ProjectContextManager(self.project)
+
+        self.context.ensure_project()
+        return self.context.read_all()
+
     def ai_menu(self):
         self.clear()
         self.header("🤖 TASK AGENT AI")
 
-        print("""
-AI integration point:
+        if self.ai_client is None:
+            print("\n❌ SVA AI client is not connected.")
+            input("\nPress ENTER...")
+            return
 
-USER TASK
-   ↓
-CONTEXT
-   ↓
-PROJECT UNDERSTANDING
-   ↓
-PLAN
-   ↓
-ACTION
-   ↓
-OBSERVATION
-   ↓
-ERROR ANALYSIS
-   ↓
-REPAIR / NEXT ACTION
-   ↓
-VERIFY
-   ↓
-MEMORY
-""")
+        if not self.ensure_project():
+            return
 
-        print("The autonomous AI execution layer will connect here.")
+        context = self.load_agent_context()
+        print("\n🧠 Project context loaded:", len(context), "files")
+
+        task = input("\nTask> ").strip()
+        if not task:
+            print("\n❌ Task is empty.")
+            input("\nPress ENTER...")
+            return
+
+        planner = AIPlanner(self.ai_client)
+
+        print("\n🤖 Creating project-aware execution plan...")
+        result = planner.plan(task, context=context)
+
+        print("\n--- PLAN RESULT ---")
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+
+        if not result.get("success"):
+            print("\n❌ Planning failed.")
+            input("\nPress ENTER...")
+            return
+
+        steps = result.get("steps") or []
+        if not steps:
+            print("\n❌ AI returned no executable steps.")
+            input("\nPress ENTER...")
+            return
+
+        print(f"\n📋 Steps: {len(steps)}")
+
+        confirm = input("\nExecute this plan? [y/N]: ").strip().lower()
+        if confirm != "y":
+            print("\n⏸️ Plan not executed.")
+            input("\nPress ENTER...")
+            return
+
+        project_id = "sva_" + str(abs(hash(str(self.project))) % 100000000)
+        task_id = "task_" + str(abs(hash(task + str(self.project))) % 100000000)
+
+        store = TaskStore()
+
+        store.create_project(
+            project_id=project_id,
+            name=self.project.name,
+            description=task,
+            workspace=self.project,
+        )
+
+        store.create_task(
+            project_id=project_id,
+            task_id=task_id,
+            description=task,
+            steps=steps,
+        )
+
+        controller = SVAController(store)
+        controller.set_project(project_id)
+
+        executor = ActionExecutor(controller)
+
+        recovery_manager = None
+
+        # Use the existing SVA AI client for safe test-failure repair.
+        # Only test commands are routed through the recovery manager.
+        if self.ai_client is not None:
+            try:
+                from sva_engine.ai_error_fixer import AIErrorFixer
+                from sva_engine.testing.recovery import TestRecoveryManager
+
+                def approve_repair(proposal):
+                    print("\n🔧 AI REPAIR PROPOSAL")
+                    print(
+                        json.dumps(
+                            proposal.to_dict(),
+                            indent=2,
+                            ensure_ascii=False,
+                        )
+                    )
+                    confirm = input(
+                        "\nApply this repair? [y/N]: "
+                    ).strip().lower()
+                    return confirm == "y"
+
+                recovery_manager = TestRecoveryManager(
+                    self.project,
+                    AIErrorFixer(self.ai_client),
+                    timeout=120,
+                    max_retries=2,
+                    approval_callback=approve_repair,
+                )
+            except Exception as exc:
+                print(
+                    f"\n⚠️ Test recovery unavailable: {exc}"
+                )
+
+        agent = PersistentAgent(
+            controller,
+            store=store,
+            executor=executor,
+            recovery_manager=recovery_manager,
+        )
+
+        self.current_task = task
+        self.agent_state = "RUNNING"
+        self.agent_step = 0
+        self.agent_history = []
+
+        print("\n🚀 TASK AGENT STARTED")
+        print(f"📁 Project : {self.project}")
+        print(f"🆔 Task    : {task_id}")
+        print(f"📋 Steps   : {len(steps)}")
+
+        execution = agent.run(project_id, task_id)
+
+        self.agent_state = str(execution.get("status", "UNKNOWN"))
+        self.agent_history.append(execution)
+
+        # Persist the completed autonomous task into project context.
+        try:
+            if self.context is None:
+                self.context = ProjectContextManager(self.project)
+
+            status = str(execution.get("status", "UNKNOWN"))
+            result_summary = (
+                execution.get("task", {}).get("last_output", "")
+                if isinstance(execution.get("task"), dict)
+                else ""
+            )
+
+            task_errors = []
+            task_warnings = []
+
+            task_data = execution.get("task")
+            if isinstance(task_data, dict):
+                last_error = task_data.get("last_error")
+                if last_error:
+                    task_errors.append(str(last_error))
+
+            if status == "COMPLETE":
+                self.context.record_task_result(
+                    task,
+                    status,
+                    result=result_summary,
+                    errors=task_errors or ["NONE"],
+                    warnings=task_warnings or ["NONE"],
+                )
+                self.context.record_memory_result(
+                    task,
+                    status,
+                    result_summary,
+                )
+                print("\n📝 Project context updated: tasks.md + memory.md")
+            else:
+                self.context.record_task_result(
+                    task,
+                    status,
+                    result=result_summary,
+                    errors=task_errors or ["NONE"],
+                    warnings=task_warnings or ["NONE"],
+                )
+                print("\n📝 tasks.md updated with current task status.")
+        except Exception as exc:
+            print(f"\n⚠️ Context update unavailable: {exc}")
+
+        print("\n--- EXECUTION RESULT ---")
+        print(json.dumps(execution, indent=2, ensure_ascii=False))
+
         input("\nPress ENTER...")
 
     def project_status(self):

@@ -110,13 +110,21 @@ def proposal_from_dict(data: dict[str, object]) -> RepairProposal:
                     else None
                 ),
                 old_text=(
-                    str(raw["old_text"])
-                    if raw.get("old_text") is not None
+                    str(
+                        raw["old_text"]
+                        if raw.get("old_text") is not None
+                        else raw["old"]
+                    )
+                    if raw.get("old_text") is not None or raw.get("old") is not None
                     else None
                 ),
                 new_text=(
-                    str(raw["new_text"])
-                    if raw.get("new_text") is not None
+                    str(
+                        raw["new_text"]
+                        if raw.get("new_text") is not None
+                        else raw["new"]
+                    )
+                    if raw.get("new_text") is not None or raw.get("new") is not None
                     else None
                 ),
             )

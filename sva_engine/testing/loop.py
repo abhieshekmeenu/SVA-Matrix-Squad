@@ -21,6 +21,7 @@ class TestingLoop:
         *,
         repair_proposer=None,
         approved=False,
+        approval_callback=None,
     ) -> dict[str, object]:
         history = []
 
@@ -71,9 +72,16 @@ class TestingLoop:
                     "history": history,
                 }
 
+            repair_approved = approved
+
+            if approval_callback is not None:
+                repair_approved = bool(
+                    approval_callback(proposal)
+                )
+
             repair_result = self.repair_executor.apply(
                 proposal,
-                approved=approved,
+                approved=repair_approved,
             )
 
             history[-1]["repair"] = repair_result

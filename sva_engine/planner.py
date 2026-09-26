@@ -1,3 +1,4 @@
+from pathlib import Path
 import json
 
 
@@ -16,7 +17,7 @@ class AIPlanner:
     def __init__(self, ai_client):
         self.ai_client = ai_client
 
-    def build_prompt(self, task):
+    def build_prompt(self, task, context=None):
         return (
             "You are the SVA Matrix Squad task planner.\n"
             "Convert the user's task into a safe, ordered execution plan.\n\n"
@@ -50,8 +51,27 @@ class AIPlanner:
             "11. For an existing-file bug fix, prefer patch_file after reading the file instead of rewriting the whole file.\n"
             "12. patch_file requires path, old, and new fields, and old must identify one exact block.\n"
             "13. Include a verify step after an important run.\n\n"
-            f"User task:\n{task}"
+            "14. For test, check, diagnose, or failing-test tasks on an existing project, inspect the test structure and include an actual safe test command when tests are available, such as python -m pytest -q.\n"
+            "15. Reading context files alone does not complete a testing task; include run and verify steps when the task requires testing.\n"
+            f"User task:\n{task}\n\n"
+            "Project context:\n"
+            f"{self._format_context(context)}"
         )
+
+    @staticmethod
+    def _format_context(context):
+        if not isinstance(context, dict) or not context:
+            return "No project context available."
+
+        sections = []
+        for filename, content in context.items():
+            if not isinstance(content, str):
+                continue
+            sections.append(
+                f"--- {filename} ---\n{content}"
+            )
+
+        return "\n\n".join(sections) or "No project context available."
 
     @staticmethod
     def _parse_json_response(response):
@@ -116,7 +136,7 @@ class AIPlanner:
 
         return None
 
-    def plan(self, task):
+    def plan(self, task, context=None):
         if not task or not task.strip():
             return {
                 "success": False,
@@ -125,7 +145,9 @@ class AIPlanner:
                 "steps": [],
             }
 
-        result = self.ai_client.ask(self.build_prompt(task))
+        result = self.ai_client.ask(
+            self.build_prompt(task, context=context)
+        )
 
         if not result.get("success", False):
             return {
@@ -150,7 +172,13 @@ class AIPlanner:
                 "Return ONLY one valid JSON object.\n"
                 "Do not use Markdown fences.\n"
                 "Do not add explanations.\n"
-                "Preserve the requested task and create safe executable steps.\n\n"
+                "Preserve the requested task and create safe executable steps.\n"
+                "The project workspace already exists and is the current workspace.\n"
+                "Do not claim that the project or repository was not provided.\n"
+                "Every item in steps MUST be a JSON object, never a plain string.\n"
+                "Each step object MUST contain an action from: write_file, read_file, patch_file, run, verify.\n"
+                "For testing tasks, if tests are available, include a run action using python -m pytest -q.\n"
+                "Do not install dependencies or modify the system.\n\n"
                 f"User task:\n{task}"
             )
 
@@ -243,6 +271,11 @@ class AIPlanner:
                         "raw_response": response,
                     }
 
+                # read_file is for files, not directories.
+                # A project root such as "." must be inspected with run.
+                if action == "read_file" and path.strip() in {".", "./"}:
+                    continue
+
                 clean_step["path"] = path
 
             if action == "patch_file":
@@ -318,7 +351,64 @@ class AIPlanner:
 
                 clean_step["expect"] = expect
 
+            if action == "run":
+                command = clean_step.get("command", "")
+                if isinstance(command, str) and "|| true" in command.lower():
+                    clean_step["command"] = command.replace("|| true", "").strip()
+
             clean_steps.append(clean_step)
+
+        task_lower = task.lower()
+        testing_task = any(
+            keyword in task_lower
+            for keyword in (
+                "test",
+                "tests",
+                "testing",
+                "failing test",
+                "check its tests",
+                "run its tests",
+                "pytest",
+            )
+        )
+
+        if testing_task:
+            has_test_command = any(
+                isinstance(step, dict)
+                and step.get("action") == "run"
+                and "pytest" in str(step.get("command", "")).lower()
+                for step in clean_steps
+            )
+
+            # Resolve the actual project workspace instead of relying only
+            # on the process cwd. This keeps testing enforcement project-aware.
+            project_root = Path.cwd().resolve()
+
+            tests_available = (
+                (project_root / "tests").is_dir()
+                or (project_root / "pytest.ini").is_file()
+                or (project_root / "pyproject.toml").is_file()
+                or (project_root / "setup.cfg").is_file()
+            )
+
+            if tests_available and not has_test_command:
+                clean_steps.append({
+                    "action": "run",
+                    "command": "python -m pytest -q",
+                })
+
+            if tests_available:
+                has_verify_step = any(
+                    isinstance(step, dict)
+                    and step.get("action") == "verify"
+                    for step in clean_steps
+                )
+
+                if not has_verify_step:
+                    clean_steps.append({
+                        "action": "verify",
+                        "expect": "pytest completed successfully",
+                    })
 
         project_name = data.get("project_name")
 

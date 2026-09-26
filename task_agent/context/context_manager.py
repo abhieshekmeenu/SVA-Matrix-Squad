@@ -34,12 +34,23 @@ class ProjectContextManager:
                 path.write_text(template, encoding="utf-8")
                 created.append(filename)
         self.state_dir.mkdir(parents=True, exist_ok=True)
+        previous = {}
+        if self.state_file.exists():
+            try:
+                loaded = json.loads(self.state_file.read_text(encoding="utf-8"))
+                if isinstance(loaded, dict):
+                    previous = loaded
+            except (OSError, json.JSONDecodeError):
+                previous = {}
+
         state = {
+            **previous,
             "project": str(self.project),
-            "initialized_at": datetime.now().isoformat(),
+            "initialized_at": previous.get("initialized_at", datetime.now().isoformat()),
             "context_files": list(CONTEXT_FILES),
             "created": created,
             "existing": existing,
+            "updated_at": datetime.now().isoformat(),
         }
         self.state_file.write_text(json.dumps(state, indent=2), encoding="utf-8")
         return state
@@ -83,6 +94,47 @@ class ProjectContextManager:
             "",
         ]
         return self.write("tasks.md", "\n".join(content))
+
+    def record_task_result(
+        self,
+        task: str,
+        status: str,
+        *,
+        result: str = "",
+        errors: List[str] | None = None,
+        warnings: List[str] | None = None,
+    ) -> Path:
+        """Record the latest autonomous task result without inventing project facts."""
+        progress = [
+            "[x] Project context initialized",
+            "[x] Project checked",
+            "[x] Tests completed" if status == "COMPLETE" else "[ ] Tests completed",
+            "[x] Required fixes completed" if status == "COMPLETE" else "[ ] Required fixes completed",
+            "[x] Run completed" if status == "COMPLETE" else "[ ] Run completed",
+            "[x] Verification completed" if status == "COMPLETE" else "[ ] Verification completed",
+        ]
+
+        return self.update_tasks(
+            task,
+            status,
+            progress=progress,
+            errors=errors or ["NONE"],
+            warnings=warnings or ["NONE"],
+        )
+
+    def record_memory_result(
+        self,
+        task: str,
+        status: str,
+        result: str = "",
+    ) -> Path:
+        """Append a factual autonomous-task result to project memory."""
+        content = (
+            f"Task: {task}\n"
+            f"Status: {status}\n"
+            f"Result: {result or 'No result summary available.'}"
+        )
+        return self.append_memory("Autonomous Task Result", content)
 
     def append_memory(self, title: str, content: str) -> Path:
         path = self.context_dir / "memory.md"

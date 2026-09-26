@@ -1,21 +1,21 @@
 # Tasks
 
 ## Current Task
-NONE
+Check this existing project, run its tests, identify any failing tests, and report the test result.
 
 ## Status
-NEW
+ERROR
 
 ## Progress
-- [ ] Project context initialized
-- [ ] Project checked
+- [x] Project context initialized
+- [x] Project checked
 - [ ] Tests completed
 - [ ] Required fixes completed
 - [ ] Run completed
 - [ ] Verification completed
 
 ## Errors
-NONE
+File not found: .
 
 ## Warnings
 NONE

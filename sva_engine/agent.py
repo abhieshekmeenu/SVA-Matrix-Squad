@@ -45,27 +45,62 @@ class PersistentAgent:
         if callable(setter):
             setter(project_id)
 
-    def _execute(self, command: Any, task_id: str) -> Dict[str, Any]:
-        # Planner steps are structured action dictionaries. Execute them
-        # through ActionExecutor when available; keep string-command
-        # compatibility for existing callers and tests.
-        if isinstance(command, dict) and self.executor is not None:
-            return self.executor.execute(
-                command,
-                task_id=task_id,
-                previous_result=(
-                    (self.store.load_task(
-                        self._current_project_id,
-                        task_id,
-                    ) or {}).get("results", [])[-1]
-                    if getattr(self, "_current_project_id", None)
-                    and (self.store.load_task(
-                        self._current_project_id,
-                        task_id,
-                    ) or {}).get("results")
-                    else None
-                ),
-            )
+    def _execute(self, command, task_id=None):
+        """Execute a task action through the configured executor/controller."""
+        previous_result = None
+
+        if getattr(self, "_current_project_id", None):
+            task = self.store.load_task(
+                self._current_project_id,
+                task_id,
+            ) or {}
+            results = task.get("results") or []
+            if results:
+                previous_result = results[-1]
+
+        if isinstance(command, dict):
+            if self.executor is not None:
+                return self.executor.execute(
+                    command,
+                    task_id=task_id,
+                    previous_result=previous_result,
+                )
+
+            # Structured actions must be normalized before reaching
+            # controllers, which execute command strings.
+            action = command.get("action")
+
+            if action == "run":
+                command_text = command.get("command")
+
+                if not isinstance(command_text, str) or not command_text.strip():
+                    return {
+                        "success": False,
+                        "returncode": 1,
+                        "stdout": "",
+                        "stderr": "Run action requires a valid command.",
+                        "action": "run",
+                    }
+
+                try:
+                    return self.controller.execute(
+                        command_text,
+                        task_id=task_id,
+                        input_data=command.get("input"),
+                    )
+                except TypeError:
+                    return self.controller.execute(
+                        command_text,
+                        task_id=task_id,
+                    )
+
+            return {
+                "success": False,
+                "returncode": 1,
+                "stdout": "",
+                "stderr": f"Unsupported structured action: {action}",
+                "action": action,
+            }
 
         try:
             return self.controller.execute(
@@ -125,6 +160,23 @@ class PersistentAgent:
         """
         if self.recovery_manager is None:
             return None
+
+        # Let the configured recovery manager decide whether it can
+        # handle this action. TestRecoveryManager, for example, can
+        # restrict recovery to test commands while other recovery
+        # managers may support broader task actions.
+        can_recover = getattr(
+            self.recovery_manager,
+            "can_recover",
+            None,
+        )
+
+        if callable(can_recover):
+            try:
+                if not can_recover(action):
+                    return None
+            except Exception:
+                return None
 
         proposal = self.recovery_manager.propose(
             action,

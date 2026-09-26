@@ -1233,6 +1233,55 @@ def display_chat_history(messages):
 
 
 
+
+def routing_mode_menu():
+    """Configure the persistent AI Gateway routing mode."""
+
+    from sva_engine.ai_routing_config import AIRoutingConfig
+
+    config = AIRoutingConfig()
+
+    modes = {
+        "1": ("single", "Single"),
+        "2": ("sequential", "Sequential"),
+        "3": ("load_balance", "Load Balance"),
+        "4": ("smart", "Smart / Health-Aware"),
+    }
+
+    while True:
+        current = config.get_mode()
+
+        print()
+        print(f"{MAGENTA}{BOLD}Routing Mode > {RESET}")
+        print(f"Current Mode : {CYAN}{current}{RESET}")
+        print()
+        print(f"{CYAN}[1]{RESET} Single")
+        print(f"{CYAN}[2]{RESET} Sequential")
+        print(f"{CYAN}[3]{RESET} Load Balance")
+        print(f"{CYAN}[4]{RESET} Smart / Health-Aware")
+        print(f"{CYAN}[0]{RESET} Back")
+
+        choice = input(f"\n{BOLD}Select: {RESET}").strip()
+
+        if choice == "0":
+            return
+
+        if choice not in modes:
+            print(f"{YELLOW}⚠️ Invalid choice.{RESET}")
+            continue
+
+        mode, label = modes[choice]
+
+        if config.set_mode(mode):
+            print()
+            print(f"{GREEN}✅ Routing Mode: {label}{RESET}")
+        else:
+            print(f"{RED}❌ Failed to save routing mode.{RESET}")
+
+        input("\nPress ENTER to continue...")
+
+
+
 def assistant(api_key, initial_choice=None):
 
     from datetime import datetime
@@ -1321,6 +1370,7 @@ def assistant(api_key, initial_choice=None):
 
                 print(f"{GREEN}[1]{RESET} 🌐 Language")
                 print(f"{YELLOW}[2]{RESET} 🔑 API Keys")
+                print(f"{YELLOW}[3]{RESET} 🔀 Routing Mode")
                 print(f"{RED}[0]{RESET} ↩️ Back")
                 print()
 
@@ -1337,6 +1387,10 @@ def assistant(api_key, initial_choice=None):
 
                 if setting_choice == "2":
                     api_keys_menu()
+                    continue
+
+                if setting_choice == "3":
+                    routing_mode_menu()
                     continue
 
                 input(
@@ -3319,7 +3373,17 @@ def assistant(api_key, initial_choice=None):
             try:
                 from task_agent.task_agent_menu import TaskAgentMenu
 
-                unified_agent = TaskAgentMenu()
+                from sva_engine.ai_gateway import AIGateway
+
+
+
+                unified_agent = TaskAgentMenu(
+                    AIGateway(
+                        api_key=api_key,
+                        api_url=API_URL,
+                        model=MODEL,
+                    )
+                )
                 unified_agent.run()
 
             except Exception as error:

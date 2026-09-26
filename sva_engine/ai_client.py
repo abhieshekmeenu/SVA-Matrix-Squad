@@ -142,7 +142,11 @@ class SVAAIClient:
                             "response": answer,
                         }
 
-                    last_error = "AI returned an empty response."
+                    last_error = (
+                        "AI returned an empty response; "
+                        "retrying with the next available API key/attempt."
+                    )
+                    print(f"⚠️ {last_error}")
                     continue
 
                 error_data = data.get("error", response.text)
