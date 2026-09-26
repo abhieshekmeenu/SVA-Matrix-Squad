@@ -751,10 +751,32 @@ TEST → OBSERVE → AI ANALYZE → REPAIR → RETEST → VERIFY
         self.agent_state = str(execution.get("status", "UNKNOWN"))
         self.agent_history.append(execution)
 
-        # Persist the completed autonomous task into project context.
+        # Persist autonomous results unless the user explicitly requested read-only work.
         try:
-            if self.context is None:
+            read_only_task = any(
+                phrase in task.lower()
+                for phrase in (
+                    "without modifying any files",
+                    "do not modify any files",
+                    "don't modify any files",
+                    "read-only",
+                    "read only",
+                    "without modifying files",
+                    "do not modify files",
+                    "don't modify files",
+                )
+            )
+
+            if read_only_task:
+                print("\n🔒 Read-only task: project context files were not modified.")
+            elif self.context is None:
                 self.context = ProjectContextManager(self.project)
+
+            if read_only_task:
+                print("\n--- EXECUTION RESULT ---")
+                print(json.dumps(execution, indent=2, ensure_ascii=False))
+                input("\nPress ENTER...")
+                return
 
             status = str(execution.get("status", "UNKNOWN"))
             result_summary = (
