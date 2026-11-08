@@ -546,6 +546,185 @@ def get_language_name():
     return f'{data["flag"]} {data["name"]}'
 
 
+
+def show_help_topic(topic):
+    topics = {
+        "1": (
+            "📖 HOW TO USE",
+            "SVA Matrix Squad command-line assistant hai.\n\n"
+            "Main Menu se Ask AI, Linux / Termux Help, Code Assistant,\n"
+            "Cybersecurity Learning, General Question aur Task Agent use karein.\n"
+            "Local Help aur FAQ bina API Key ke kaam karte hain.\n"
+            "Online AI features ke liye OpenRouter API Key chahiye."
+        ),
+        "2": (
+            "📋 MAIN MENU GUIDE",
+            "[1] Settings — Language, API Keys, Routing aur Help.\n"
+            "[2] Ask AI — AI chat aur Local FAQ.\n"
+            "[3] Linux / Termux — Commands ki explanation.\n"
+            "[4] Code Assistant — Programming help.\n"
+            "[5] Cybersecurity — Educational learning.\n"
+            "[6] General Question — General AI questions.\n"
+            "[7] Task Agent — Task assistance.\n"
+            "[0] Exit — Application band karein."
+        ),
+        "3": (
+            "ℹ️ ABOUT & FOUNDER",
+            "Project: SVA Matrix Squad\n"
+            "Founder: Abhishek Gautam\n"
+            "Official Brand: TechKhoj HQ\n\n"
+            "Command-line assistant for Termux and Linux."
+        ),
+        "4": (
+            "📞 CONTACT & SUPPORT",
+            "Official support aur updates ke liye TechKhoj HQ ke\n"
+            "Telegram aur social channels par sampark karein.\n\n"
+            "Telegram: https://t.me/TechKhojHQ"
+        ),
+        "5": (
+            "🌐 OFFICIAL SOCIAL LINKS",
+            "Telegram: https://t.me/TechKhojHQ\n\n"
+            "YouTube: https://youtube.com/@techkhojhq?si=9wEjqECw-o4itBeZ\n\n"
+            "Facebook: https://www.facebook.com/share/1E49JaT552/\n\n"
+            "Instagram: https://www.instagram.com/techkhojhq?rpxt=aWxmdXV2cWMwZ3Y0"
+        ),
+    }
+
+    title, body = topics[topic]
+    clear()
+    print(f"{CYAN}{BOLD}{title}{RESET}\n")
+    print(body)
+    input("\nPress ENTER to continue...")
+
+
+def local_help_menu():
+    while True:
+        clear()
+        print(f"{CYAN}{BOLD}")
+        print("╭────────────────────────────────────────────────────────╮")
+        print("│                  📚 HELP & SUPPORT                     │")
+        print("╰────────────────────────────────────────────────────────╯")
+        print(f"{RESET}")
+        print(f"{GREEN}[1]{RESET} How to Use")
+        print(f"{GREEN}[2]{RESET} Main Menu Guide")
+        print(f"{GREEN}[3]{RESET} About & Founder")
+        print(f"{GREEN}[4]{RESET} Contact & Support")
+        print(f"{GREEN}[5]{RESET} Official Social Links")
+        print(f"{RED}[0]{RESET} Back\n")
+
+        choice = input(
+            f"{MAGENTA}{BOLD}Help & Support > {RESET}"
+        ).strip()
+
+        if choice == "0":
+            return
+        if choice in ("1", "2", "3", "4", "5"):
+            show_help_topic(choice)
+
+
+def get_local_faq_answer(question):
+    q = re.sub(r"\s+", " ", question.lower()).strip()
+    project = any(word in q for word in (
+        "sva", "matrix", "squad", "इस प्रोजेक्ट", "यह प्रोजेक्ट"
+    ))
+
+    if any(word in q for word in (
+        "who are you", "who created you", "who made you",
+        "founder", "creator", "kisne banaya", "founder kaun",
+        "creator kaun", "आपको किसने बनाया"
+    )):
+        return (
+            "Main SVA Matrix Squad hoon, ek command-line assistant "
+            "jo Termux aur Linux ke liye banaya gaya hai. "
+            "Founder: Abhishek Gautam. Official Brand: TechKhoj HQ."
+        )
+
+    if project and any(word in q for word in (
+        "what is", "kya hai", "about", "ke baare", "बताओ"
+    )):
+        return (
+            "SVA Matrix Squad Termux aur Linux ke liye command-line "
+            "assistant hai. Isme Ask AI, Linux / Termux Help, Code "
+            "Assistant, Cybersecurity Learning, General Questions, "
+            "Task Agent, Settings aur Chat History features hain. "
+            "Local Help bina API Key ke kaam karta hai."
+        )
+
+    if project and any(word in q for word in (
+        "install", "installation", "download", "clone",
+        "kaise lagaye", "kaise install"
+    )):
+        return (
+            "Termux installation steps:\n\n"
+            "1. pkg update -y\n"
+            "2. pkg install git python -y\n"
+            "3. git clone https://github.com/abhieshekmeenu/SVA-Matrix-Squad.git\n"
+            "4. cd SVA-Matrix-Squad\n"
+            "5. bash install.sh\n"
+            "6. sva\n\n"
+            "Online AI features ke liye apni OpenRouter API Key "
+            "Settings > API Keys mein add karein."
+        )
+
+    if project and any(word in q for word in (
+        "requirements", "requirement", "needed", "dependencies",
+        "kya chahiye", "जरूरत"
+    )):
+        return (
+            "Requirements:\n"
+            "• Termux ya Linux\n"
+            "• Python 3\n"
+            "• Git\n"
+            "• requests Python package\n"
+            "• Internet: online AI aur repository download ke liye\n"
+            "• OpenRouter API Key: online AI features ke liye\n\n"
+            "Local Help ke liye API Key zaroori nahi hai."
+        )
+
+    if project and any(word in q for word in (
+        "how to use", "kaise use", "kaise chalaye",
+        "use kaise", "guide"
+    )):
+        return (
+            "Application start karne ke baad Main Menu se feature "
+            "select karein. Local questions Ask AI mein pooch sakte "
+            "hain. Help ke liye Settings > Help & Support kholein."
+        )
+
+    if project and any(word in q for word in (
+        "contact", "support", "social", "telegram",
+        "youtube", "facebook", "instagram", "link"
+    )):
+        return (
+            "Official TechKhoj HQ links:\n\n"
+            "Telegram: https://t.me/TechKhojHQ\n"
+            "YouTube: https://youtube.com/@techkhojhq?si=9wEjqECw-o4itBeZ\n"
+            "Facebook: https://www.facebook.com/share/1E49JaT552/\n"
+            "Instagram: https://www.instagram.com/techkhojhq?rpxt=aWxmdXV2cWMwZ3Y0"
+        )
+
+    return None
+
+
+def show_how_to_use_video_if_needed(api_key):
+    if api_key:
+        return
+
+    video = Path(__file__).resolve().parent / "assets" / "how-to-use.mp4"
+
+    # Future video placeholder: no lock screen or countdown.
+    if not video.is_file():
+        return
+
+    try:
+        if "com.termux" in os.environ.get("PREFIX", ""):
+            subprocess.Popen(["termux-open", str(video)])
+        else:
+            subprocess.Popen(["xdg-open", str(video)])
+    except Exception:
+        pass
+
+
 def language_menu():
     while True:
         clear()
@@ -1073,6 +1252,12 @@ def get_api_key():
 
 def ask_ai(api_key, messages):
     """Send an AI request using the configured API-key failover chain."""
+    if not api_key:
+        raise RuntimeError(
+            "API Key not configured. Open Settings > API Keys. "
+            "Local Help and FAQ are available without an API Key."
+        )
+
     client = SVAAIClient(
         api_key,
         API_URL,
@@ -1371,6 +1556,7 @@ def assistant(api_key, initial_choice=None):
                 print(f"{GREEN}[1]{RESET} 🌐 Language")
                 print(f"{YELLOW}[2]{RESET} 🔑 API Keys")
                 print(f"{YELLOW}[3]{RESET} 🔀 Routing Mode")
+                print(f"{GREEN}[4]{RESET} 📚 Help & Support")
                 print(f"{RED}[0]{RESET} ↩️ Back")
                 print()
 
@@ -1391,6 +1577,10 @@ def assistant(api_key, initial_choice=None):
 
                 if setting_choice == "3":
                     routing_mode_menu()
+                    continue
+
+                if setting_choice == "4":
+                    local_help_menu()
                     continue
 
                 input(
@@ -1537,34 +1727,37 @@ def assistant(api_key, initial_choice=None):
                     question,
                 )
 
-                try:
-                    answer = ask_ai(
-                        api_key,
-                        messages,
-                    )
-                except Exception as error:
-                    print()
-                    print(
-                        f"{RED}"
-                        f"❌ AI error: {error}"
-                        f"{RESET}"
-                    )
-                    input("\nPress ENTER...")
-                    continue
+                answer = get_local_faq_answer(question)
 
-                messages.append(
-                    {
-                        "role": "assistant",
-                        "content": answer,
-                    }
-                )
+                if answer is None and not api_key:
+                    answer = (
+                        "Is question ke liye online AI ki zaroorat hai, "
+                        "lekin API Key configured nahi hai. "
+                        "Settings > API Keys mein key add karein. "
+                        "Local Help aur FAQ bina key ke available hain."
+                    )
 
+                if answer is None:
+                    try:
+                        answer = ask_ai(
+                            api_key,
+                            messages,
+                        )
+                    except Exception as error:
+                        print()
+                        print(f"{RED}❌ AI error: {error}{RESET}")
+                        input("\nPress ENTER...")
+                        continue
+
+                messages.append({"role": "assistant", "content": answer})
                 history_manager.append_message(
                     history_id,
                     "assistant",
                     answer,
                 )
 
+                if get_local_faq_answer(question) is not None or not api_key:
+                    continue
                 # AI reply is already saved in messages.
                 # Let the chat loop redraw the complete conversation
                 # so YOU stays on the right and SVA MATRIX stays on the left.
@@ -4488,21 +4681,9 @@ def universal_chat_manager(
 
 def main():
 
-    # --------------------------------------------------------
-    # TOOL LOCK SCREEN
-    # --------------------------------------------------------
-
-    # --------------------------------------------------------
-    # API KEY / FIRST-RUN SCREEN
-    # --------------------------------------------------------
-
-    key_file = Path.home() / ".sva_matrix_squad_api_key"
-
-    # Show the YouTube/startup screen only on first run.
-    if not key_file.exists() or not key_file.read_text().strip():
-        startup_screen()
-
-    api_key = get_api_key()
+    # API key is optional at startup. Local features work without it.
+    api_key = get_active_api_key()
+    show_how_to_use_video_if_needed(api_key)
 
     # --------------------------------------------------------
     # SVA MATRIX SQUAD STARTUP

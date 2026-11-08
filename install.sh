@@ -1,4 +1,4 @@
-#!/data/data/com.termux/files/usr/bin/bash
+#!/usr/bin/env bash
 
 set -e
 
@@ -51,21 +51,57 @@ python3 -m pip install -r "$PROJECT_DIR/requirements.txt"
 chmod +x "$PROJECT_DIR/SVA-Matrix.py"
 
 if command -v pkg >/dev/null 2>&1; then
-    LAUNCHER="$PREFIX/bin/sva"
-    cat > "$LAUNCHER" <<LAUNCHER_EOF
-#!/data/data/com.termux/files/usr/bin/bash
-exec python3 "$PROJECT_DIR/SVA-Matrix.py" "\$@"
-LAUNCHER_EOF
+    INSTALL_DIR="${PREFIX}/bin"
 else
-    LAUNCHER="$HOME/.local/bin/sva"
-    mkdir -p "$HOME/.local/bin"
+    INSTALL_DIR="$HOME/.local/bin"
+fi
+
+mkdir -p "$INSTALL_DIR"
+
+make_case_variants() {
+    local input="$1"
+    local prefix="${2:-}"
+    local first rest
+
+    if [ -z "$input" ]; then
+        printf '%s\n' "$prefix"
+        return
+    fi
+
+    first="${input:0:1}"
+    rest="${input:1}"
+
+    make_case_variants "$rest" "$prefix${first,,}"
+    make_case_variants "$rest" "$prefix${first^^}"
+}
+
+while IFS= read -r command_name; do
+    [ -n "$command_name" ] || continue
+
+    LAUNCHER="$INSTALL_DIR/$command_name"
+
     cat > "$LAUNCHER" <<LAUNCHER_EOF
 #!/usr/bin/env bash
 exec python3 "$PROJECT_DIR/SVA-Matrix.py" "\$@"
 LAUNCHER_EOF
-fi
 
-chmod +x "$LAUNCHER"
+    chmod +x "$LAUNCHER"
+    echo -e "${GREEN}[+] Launcher created: $command_name${RESET}"
+done < <(
+    make_case_variants "sva"
+    make_case_variants "sava"
+)
+
+echo
+echo -e "${CYAN}Launcher directory: $INSTALL_DIR${RESET}"
+
+case ":$PATH:" in
+    *":$INSTALL_DIR:"*) ;;
+    *)
+        echo -e "${YELLOW}Add this directory to PATH:${RESET}"
+        echo "export PATH=\"$INSTALL_DIR:\$PATH\""
+        ;;
+esac
 
 echo
 echo -e "${GREEN}${BOLD}"
